@@ -1,13 +1,13 @@
 {
   "extraKnownMarketplaces": {
-    "cursor-plugins": {
+    "claude-harness": {
       "source": {
         "source": "github",
-        "repo": "cursor/plugins"
+        "repo": "asanomitakanori/claude-harness"
       }
     }
   },
   "enabledPlugins": {
-    "pstack@cursor-plugins": true
+    "pstack@claude-harness": true
   }
 }

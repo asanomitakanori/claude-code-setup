@@ -11,11 +11,15 @@ Personal setup for [Claude Code](https://docs.claude.com/en/docs/claude-code).
 
 ## Plugins
 
-[pstack](https://github.com/cursor/plugins/tree/main/pstack) (`poteto-mode`, `poteto-agent` and the other pstack skills, MIT) from the `cursor/plugins` marketplace. Claude Code offers to install it when it opens this repository. To install it for every project:
+This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`). It lists:
+
+- **pstack**: `poteto-mode`, `poteto-agent` and the other pstack skills by Lauren Tan, MIT License. The marketplace references `harness/pstack/claude-code` in [cursor/plugins](https://github.com/cursor/plugins) instead of copying it, so the code and its license stay upstream.
+
+Claude Code offers to install it when it opens this repository. To install it for every project:
 
 ```bash
-claude plugin marketplace add cursor/plugins
-claude plugin install pstack@cursor-plugins
+claude plugin marketplace add asanomitakanori/claude-harness
+claude plugin install pstack@claude-harness
 ```
 
 ## Status line

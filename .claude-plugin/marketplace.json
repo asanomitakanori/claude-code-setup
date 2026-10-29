@@ -1,0 +1,18 @@
+{
+  "name": "claude-harness",
+  "owner": {
+    "name": "asanomitakanori"
+  },
+  "plugins": [
+    {
+      "name": "pstack",
+      "description": "Lauren Tan's pstack (poteto-mode, poteto-agent and related skills), referenced from cursor/plugins under the MIT License.",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/cursor/plugins.git",
+        "path": "harness/pstack/claude-code",
+        "ref": "main"
+      }
+    }
+  ]
+}
