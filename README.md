@@ -7,6 +7,16 @@ Personal setup for [Claude Code](https://docs.claude.com/en/docs/claude-code).
 - `AGENTS.md`: agent instructions; `CLAUDE.md` is a symlink to it
 - `skills/`: skills; `.claude/skills` and `.agents/skills` are symlinks to it
 - `statusline/`: the status line script and its installer
+- `.claude/settings.json`: plugins enabled when Claude Code opens this repository
+
+## Plugins
+
+[pstack](https://github.com/cursor/plugins/tree/main/pstack) (`poteto-mode`, `poteto-agent` and the other pstack skills, MIT) from the `cursor/plugins` marketplace. Claude Code offers to install it when it opens this repository. To install it for every project:
+
+```bash
+claude plugin marketplace add cursor/plugins
+claude plugin install pstack@cursor-plugins
+```
 
 ## Status line
 
