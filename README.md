@@ -1,4 +1,4 @@
-# claude-harness
+# claude-code-setup
 
 Personal setup for [Claude Code](https://docs.claude.com/en/docs/claude-code).
 
@@ -21,9 +21,9 @@ This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace
 Claude Code offers to install them when it opens this repository. To install them for every project:
 
 ```bash
-claude plugin marketplace add asanomitakanori/claude-harness
-claude plugin install pstack@claude-harness
-claude plugin install thermos@claude-harness
+claude plugin marketplace add asanomitakanori/claude-code-setup
+claude plugin install pstack@claude-code-setup
+claude plugin install thermos@claude-code-setup
 ```
 
 ## Rules

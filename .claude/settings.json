@@ -1,14 +1,14 @@
 {
   "extraKnownMarketplaces": {
-    "claude-harness": {
+    "claude-code-setup": {
       "source": {
         "source": "github",
-        "repo": "asanomitakanori/claude-harness"
+        "repo": "asanomitakanori/claude-code-setup"
       }
     }
   },
   "enabledPlugins": {
-    "pstack@claude-harness": true,
-    "thermos@claude-harness": true
+    "pstack@claude-code-setup": true,
+    "thermos@claude-code-setup": true
   }
 }
