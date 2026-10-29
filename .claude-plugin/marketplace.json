@@ -3,6 +3,9 @@
   "owner": {
     "name": "asanomitakanori"
   },
+  "metadata": {
+    "description": "Personal Claude Code setup: plugins cited from cursor/plugins."
+  },
   "plugins": [
     {
       "name": "pstack",
@@ -13,6 +16,18 @@
         "path": "harness/pstack/claude-code",
         "ref": "main"
       }
+    },
+    {
+      "name": "thermos",
+      "description": "Thermo-nuclear branch and code-quality reviews run as parallel subagents, cited from cursor/plugins (© 2026 Cursor, MIT License).",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/cursor/plugins.git",
+        "path": "thermos",
+        "ref": "main"
+      },
+      "license": "MIT",
+      "strict": false
     }
   ]
 }

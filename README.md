@@ -6,20 +6,44 @@ Personal setup for [Claude Code](https://docs.claude.com/en/docs/claude-code).
 
 - `AGENTS.md`: agent instructions; `CLAUDE.md` is a symlink to it
 - `skills/`: skills; `.claude/skills` and `.agents/skills` are symlinks to it
+- `rules/`: global rules for how to work with pstack
+- `settings.example.json`: general settings (theme, model, effort per model, status line)
 - `statusline/`: the status line script and its installer
 - `.claude/settings.json`: plugins enabled when Claude Code opens this repository
 
 ## Plugins
 
-This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`). It lists:
+This repository is a Claude Code plugin marketplace (`.claude-plugin/marketplace.json`). Neither plugin is authored here; both are cited from [cursor/plugins](https://github.com/cursor/plugins). The marketplace points at the upstream directories instead of copying them, so the code and its licenses stay there.
 
-- **pstack** (cited): `poteto-mode`, `poteto-agent` and the other pstack skills. This plugin is not authored here; it is cited from [cursor/plugins](https://github.com/cursor/plugins) (`harness/pstack/claude-code`), © 2026 Lauren Tan, MIT License. The marketplace points at the upstream directory instead of copying it, so the code and its license stay there.
+- **pstack** (cited): `poteto-mode`, `poteto-agent` and the other pstack skills, from `harness/pstack/claude-code`. © 2026 Lauren Tan, MIT License.
+- **thermos** (cited): code review. `/thermos` runs a branch audit (bugs, breaking changes, security) and a code-quality audit as parallel subagents and merges the findings; the two audits are also available alone. From `thermos`. © 2026 Cursor, MIT License.
 
-Claude Code offers to install it when it opens this repository. To install it for every project:
+Claude Code offers to install them when it opens this repository. To install them for every project:
 
 ```bash
 claude plugin marketplace add asanomitakanori/claude-harness
 claude plugin install pstack@claude-harness
+claude plugin install thermos@claude-harness
+```
+
+## Rules
+
+Files in `~/.claude/rules/` apply to every project. Copy the ones you want:
+
+```bash
+mkdir -p ~/.claude/rules && cp rules/*.md ~/.claude/rules/
+```
+
+- `pstack-default.md`: use pstack's `poteto-mode` for substantive engineering work
+- `subagent-delegation.md`: the main session plans and delegates coding to `pstack:poteto-agent` subagents
+- `pstack-models.md`: which model and effort each pstack role uses
+
+## Settings
+
+`settings.example.json` holds the general settings. Merge it into `~/.claude/settings.json` (existing keys are overwritten by the example's):
+
+```bash
+jq -s '.[0] * .[1]' ~/.claude/settings.json settings.example.json > /tmp/settings.json && mv /tmp/settings.json ~/.claude/settings.json
 ```
 
 ## Status line
@@ -58,7 +82,8 @@ Restart Claude Code to pick it up.
 ## Credits
 
 - [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan, cited from [cursor/plugins](https://github.com/cursor/plugins) under the MIT License.
+- [thermos](https://github.com/cursor/plugins/tree/main/thermos) by Cursor, cited from [cursor/plugins](https://github.com/cursor/plugins) under the MIT License.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). This covers the files in this repository. pstack is not included here and stays under its own MIT License (© 2026 Lauren Tan).
+MIT, see [LICENSE](LICENSE). This covers the files in this repository. pstack and thermos are not included here and stay under their own MIT Licenses (© 2026 Lauren Tan and © 2026 Cursor).

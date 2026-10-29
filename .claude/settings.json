@@ -8,6 +8,7 @@
     }
   },
   "enabledPlugins": {
-    "pstack@claude-harness": true
+    "pstack@claude-harness": true,
+    "thermos@claude-harness": true
   }
 }
