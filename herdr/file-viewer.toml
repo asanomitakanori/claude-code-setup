@@ -1,0 +1,12 @@
+# herdr-file-viewer settings (read-only for the viewer; see config.example.toml in the plugin dir).
+#
+# Icons before every file / folder in the tree. Local patch (src/icons.rs in the plugin checkout).
+#   "emoji"     : 📁 📝 🧩 🐍 🐳 ... works in any terminal, no special font needed
+#   "nerd-font" : VS Code-style per-type glyphs; needs a Nerd Font v3 selected in the terminal app
+#   "none"      : plain tree (upstream behaviour)
+# Switch to "nerd-font" once `echo -e "\U000f0626"` prints a {} icon instead of a box in your shell.
+file_icons = "emoji"
+
+# Mouse-wheel scroll lines per event (1 = slow ... 10 = max, default 3).
+# Some terminals send several wheel events per notch, so the effective step is a multiple.
+scroll_lines = 1

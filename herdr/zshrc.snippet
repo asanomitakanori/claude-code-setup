@@ -1,0 +1,8 @@
+# herdr on hosts that share one NFS $HOME: every host would otherwise bind the
+# same ~/.config/herdr/herdr.sock and session.json. AF_UNIX sockets do not work
+# over NFS, so a client cannot reach the running server, spawns a child server,
+# and detaching kills that server with every pane. Give each host its own
+# session and put its socket on host-local tmpfs.
+export HERDR_SESSION="${HERDR_SESSION:-$(hostname -s)}"
+export HERDR_SOCKET_PATH="/run/user/$(id -u)/herdr/${HERDR_SESSION}.sock"
+[ -d "${HERDR_SOCKET_PATH:h}" ] || mkdir -p "${HERDR_SOCKET_PATH:h}"

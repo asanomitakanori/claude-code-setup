@@ -1,0 +1,19 @@
+onboarding = false
+
+# herdr-file-viewer (smarzban/herdr-file-viewer): git-aware read-only file viewer.
+# prefix+f opens it in a split beside the current pane; prefix+shift+f in its own tab.
+[[keys.command]]
+key = "prefix+f"
+type = "plugin_action"
+command = "herdr-file-viewer.open-file-viewer"
+description = "open file viewer in split"
+
+[[keys.command]]
+key = "prefix+shift+f"
+type = "plugin_action"
+command = "herdr-file-viewer.open-file-viewer-tab"
+description = "open file viewer in tab"
+
+[theme]
+name = "catppuccin"
+auto_switch = false

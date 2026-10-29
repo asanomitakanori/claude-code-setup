@@ -1,0 +1,497 @@
+diff --git a/config.example.toml b/config.example.toml
+index 140a7fd..51acd7e 100644
+--- a/config.example.toml
++++ b/config.example.toml
+@@ -73,6 +73,13 @@
+ # either way. The `i` key still toggles this at runtime. Default:
+ #show_ignored = false
+ 
++# Draw an icon before every file and folder in the tree. "nerd-font" gives VS
++# Code-style per-type glyphs (json, md, yaml, Dockerfile, ...) but needs a Nerd
++# Font v3 in the TERMINAL that displays herdr -- without one they show as boxes.
++# "emoji" gives a coarser per-type set (📁 📝 🐍 🐳 ...) that any modern terminal
++# can draw. "none" keeps the plain tree. Default:
++#file_icons = "none"
++
+ # Draw a chain of single-child directories as ONE row -- `src/main/java/br/com`
+ # instead of six rows, each indented two columns further than the last. The row
+ # leads into the DEEPEST directory of the chain, so expand/collapse and status
+diff --git a/docs/configuration.md b/docs/configuration.md
+index ab9f092..f96bca9 100644
+--- a/docs/configuration.md
++++ b/docs/configuration.md
+@@ -47,7 +47,7 @@ A config key always wins. Only two keys also have an environment-variable fallba
+ config key and above the built-in default — `editor` (`$EDITOR`) and `update_check`
+ (`$HERDR_FILE_VIEWER_NO_UPDATE_CHECK`) — giving those two a `config > env > default` chain. Every
+ other key (`markdown`, `diff`, `syntax`, `open`, `reveal`, `hide_dotfiles`, `show_ignored`,
+-`compact_dirs`, `changed_file_view`, `baseline`, `confirm_discard`, `scroll_lines`, `tree_width`,
++`file_icons`, `compact_dirs`, `changed_file_view`, `baseline`, `confirm_discard`, `scroll_lines`, `tree_width`,
+ `tree_position`, `tree_max_cols`, `open_direction`, `preview_max_lines`, `preview_max_kib`) has no
+ applicable environment variable; for those it's `config > default` only.
+ 
+@@ -67,6 +67,7 @@ reveal = "nautilus"
+ 
+ hide_dotfiles = false       # true to hide dotfiles at startup (the `.` key still toggles)
+ show_ignored = false        # true to show gitignored files at startup (the `i` key still toggles)
++file_icons = "none"         # "nerd-font" (per-type Nerd Font glyphs) or "emoji" (📁 📝 🐍 …) before each entry
+ compact_dirs = false        # true to draw a chain of single-child dirs as ONE row (src/main/java)
+ changed_file_view = "diff"  # changed files start in "diff", or use normal "content" by file type
+ baseline = "base"           # force startup diff baseline: "base" or "head" (omit for context-smart default)
+diff --git a/src/app.rs b/src/app.rs
+index d3d7bab..4af2ba7 100644
+--- a/src/app.rs
++++ b/src/app.rs
+@@ -57,6 +57,8 @@ pub fn run(open_flag: Option<String>) -> io::Result<()> {
+     // `load_config_from_env` returns `Config::default()`, so default behavior is unchanged.
+     let (cfg, load_outcome) = crate::config::load_config_from_env();
+     let eff = crate::config::resolve(&cfg, |k| std::env::var(k).ok());
++    // Tree icon column (`file_icons = "nerd-font" | "emoji"`): a process-wide switch the presenter reads.
++    crate::icons::set_mode(crate::icons::Mode::parse(cfg.file_icons.as_deref()));
+ 
+     // The effective renderers (config overrides layered onto the built-in defaults, AC-7) — built
+     // once and reused for both renderer sites below (the root-bound factory's `LiveContent` and
+diff --git a/src/config.rs b/src/config.rs
+index 6bb8e02..4b6c925 100644
+--- a/src/config.rs
++++ b/src/config.rs
+@@ -147,6 +147,11 @@ pub struct Config {
+     pub open: Option<String>,
+     pub reveal: Option<String>,
+     pub hide_dotfiles: Option<bool>,
++    /// Tree icon style: `"nerd-font"` draws a per-type Nerd Font glyph, `"emoji"` a per-type color
++    /// emoji, before every file and folder name (see [`crate::icons`]); `"none"`, absent, or
++    /// unrecognized keeps the plain tree. A local addition — upstream declined configurable icons
++    /// (smarzban/herdr-file-viewer#153).
++    pub file_icons: Option<String>,
+     /// Whether gitignored (and git-excluded) entries are shown at startup, exactly as if `i` had
+     /// already been pressed once. `None` falls back to `false` (the default: ignored entries
+     /// hidden). `.git/` itself is never browsed regardless of this setting. The interactive `i`
+diff --git a/src/icons.rs b/src/icons.rs
+new file mode 100644
+index 0000000..54243a6
+--- /dev/null
++++ b/src/icons.rs
+@@ -0,0 +1,378 @@
++//! File and folder icons for the tree (a local addition: the upstream project keeps the tree plain,
++//! see smarzban/herdr-file-viewer#153). Selected by `file_icons` in the plugin's `config.toml`:
++//! `"nerd-font"` for per-type Nerd Font glyphs, `"emoji"` for a smaller set of color emoji that any
++//! modern terminal can draw without a patched font, anything else for the plain upstream tree.
++//!
++//! The glyph/color table was generated from mini.icons (echasnovski/mini.icons), the icon source
++//! LazyVim uses, so a file shows the same icon here as in neovim's file pickers. Every glyph is a
++//! single-cell Nerd Font v3 codepoint; a terminal without a Nerd Font shows a placeholder box.
++
++use ratatui::style::Color;
++use std::sync::atomic::{AtomicU8, Ordering};
++
++/// Which icon vocabulary the tree draws, if any.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
++pub enum Mode {
++    /// The plain upstream tree: no icon column.
++    #[default]
++    Off,
++    /// One-cell Nerd Font v3 glyphs, per file type (needs a Nerd Font in the terminal).
++    Nerd,
++    /// Two-cell color emoji, a coarser per-type set that needs no special font.
++    Emoji,
++}
++
++impl Mode {
++    /// Lenient parse of the `file_icons` config value: trimmed, case-insensitive; unknown → `Off`.
++    pub fn parse(value: Option<&str>) -> Mode {
++        match value.map(|s| s.trim().to_ascii_lowercase()).as_deref() {
++            Some("nerd-font" | "nerd" | "nerdfont" | "nerd_font") => Mode::Nerd,
++            Some("emoji" | "unicode") => Mode::Emoji,
++            _ => Mode::Off,
++        }
++    }
++}
++
++static MODE: AtomicU8 = AtomicU8::new(0);
++
++/// Select the icon mode for the whole process. Called once at startup from the loaded config; the
++/// presenter reads it on every tree render.
++pub fn set_mode(mode: Mode) {
++    MODE.store(mode as u8, Ordering::Relaxed);
++}
++
++/// The icon mode in effect.
++pub fn mode() -> Mode {
++    match MODE.load(Ordering::Relaxed) {
++        1 => Mode::Nerd,
++        2 => Mode::Emoji,
++        _ => Mode::Off,
++    }
++}
++
++/// Whether tree rows carry an icon before the name.
++pub fn enabled() -> bool {
++    mode() != Mode::Off
++}
++
++const DEFAULT_FILE: (&str, Color) = ("\u{f0214}", Color::Gray);
++const DEFAULT_DIR: (&str, Color) = ("\u{f024b}", Color::LightBlue);
++/// nf-md-folder_open: the generic folder's expanded state.
++const DEFAULT_DIR_OPEN: (&str, Color) = ("\u{f0770}", Color::LightBlue);
++
++/// The icon for a directory row in the current mode. In Nerd mode a well-known directory name
++/// (`src`, `tests`, `.github`, …) keeps its own glyph whether expanded or not; any other folder
++/// flips between the closed and open folder glyphs so the expand arrow is not the only cue.
++pub fn dir_icon(name: &str, expanded: bool) -> (&'static str, Color) {
++    match mode() {
++        Mode::Emoji if expanded => ("\u{1f4c2}", Color::Reset),
++        Mode::Emoji => ("\u{1f4c1}", Color::Reset),
++        _ => nerd_dir_icon(name, expanded),
++    }
++}
++
++/// The icon for a file row in the current mode: an exact (case-insensitive) file name first, then
++/// the extension after the last dot, then the generic file glyph.
++pub fn file_icon(name: &str) -> (&'static str, Color) {
++    match mode() {
++        Mode::Emoji => emoji_file_icon(&name.to_ascii_lowercase()),
++        _ => nerd_file_icon(name),
++    }
++}
++
++/// Color emoji for the common file kinds. Every entry is a two-cell emoji (text-presentation
++/// symbols such as `⚙` get an explicit VS16 so terminals agree on the width), so rows stay aligned.
++fn emoji_file_icon(lower: &str) -> (&'static str, Color) {
++    let c = Color::Reset;
++    match lower {
++        "dockerfile" | "containerfile" => return ("\u{1f433}", c), // 🐳
++        "makefile" | "justfile" | "cmakelists.txt" => return ("\u{1f527}", c), // 🔧
++        "license" | "license.md" | "license.txt" | "copying" => return ("\u{2696}\u{fe0f}", c), // ⚖️
++        ".gitignore" | ".gitattributes" | ".gitmodules" => return ("\u{1f6ab}", c), // 🚫
++        _ => {}
++    }
++    if lower.starts_with("readme") {
++        return ("\u{1f4d6}", c); // 📖
++    }
++    let ext = lower.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
++    let g = match ext {
++        "md" | "mdx" | "markdown" | "rst" | "adoc" | "org" => "\u{1f4dd}", // 📝
++        "json" | "jsonc" | "json5" | "toml" | "yaml" | "yml" | "ini" | "cfg" | "conf" | "env" => {
++            "\u{1f9e9}" // 🧩
++        }
++        "py" | "pyi" | "ipynb" => "\u{1f40d}",            // 🐍
++        "rs" => "\u{1f980}",                              // 🦀
++        "go" => "\u{1f439}",                              // 🐹
++        "js" | "mjs" | "cjs" | "jsx" => "\u{1f7e8}",      // 🟨
++        "ts" | "tsx" => "\u{1f7e6}",                      // 🟦
++        "html" | "htm" | "vue" | "svelte" => "\u{1f310}", // 🌐
++        "css" | "scss" | "sass" | "less" => "\u{1f3a8}",  // 🎨
++        "sh" | "bash" | "zsh" | "fish" | "ps1" | "bat" => "\u{1f4dc}", // 📜
++        "lua" | "vim" => "\u{1f319}",                     // 🌙
++        "c" | "h" | "cpp" | "cc" | "cxx" | "hpp" | "hh" | "java" | "kt" | "cs" | "swift" => {
++            "\u{2699}\u{fe0f}" // ⚙️
++        }
++        "sql" | "db" | "sqlite" | "sqlite3" | "csv" | "tsv" | "parquet" => "\u{1f4ca}", // 📊
++        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "ico" | "svg" | "tif" | "tiff"
++        | "psd" => {
++            "\u{1f5bc}\u{fe0f}" // 🖼️
++        }
++        "mp4" | "mov" | "mkv" | "avi" | "webm" => "\u{1f3ac}", // 🎬
++        "mp3" | "wav" | "flac" | "ogg" => "\u{1f3b5}",         // 🎵
++        "zip" | "tar" | "gz" | "tgz" | "bz2" | "xz" | "zst" | "7z" | "rar" => "\u{1f4e6}", // 📦
++        "pdf" => "\u{1f4d5}",                                  // 📕
++        "lock" | "pem" | "key" | "crt" => "\u{1f512}",         // 🔒
++        "txt" | "log" => "\u{1f4c3}",                          // 📃
++        "pt" | "pth" | "ckpt" | "safetensors" | "onnx" | "npy" | "npz" | "pkl" | "h5" => {
++            "\u{1f9e0}" // 🧠
++        }
++        _ => "\u{1f4c4}", // 📄
++    };
++    (g, c)
++}
++
++fn nerd_dir_icon(name: &str, expanded: bool) -> (&'static str, Color) {
++    match name.to_ascii_lowercase().as_str() {
++        "src" => ("\u{f0d09}", Color::Magenta),
++        ".git" => ("\u{0e5fb}", Color::LightRed),
++        "node_modules" => ("\u{0e5fa}", Color::Green),
++        ".github" => ("\u{0e5fd}", Color::LightBlue),
++        "test" | "tests" => ("\u{f178a}", Color::Blue),
++        "doc" | "docs" => ("\u{f10b7}", Color::Magenta),
++        ".config" => ("\u{f107f}", Color::Cyan),
++        ".claude" | ".idea" | ".venv" | ".vscode" | "__pycache__" | "api" | "apps" | "assets"
++        | "benchmarks" | "cache" | "cmake" | "components" | "config" | "data" | "deploy"
++        | "dist" | "examples" | "experiments" | "fonts" | "hooks" | "images" | "img"
++        | "include" | "infra" | "k8s" | "logs" | "migrations" | "models" | "notebooks"
++        | "outputs" | "packages" | "pages" | "public" | "results" | "scripts" | "services"
++        | "static" | "styles" | "target" | "terraform" | "third_party" | "types" | "utils"
++        | "vendor" | "venv" => ("\u{f024b}", Color::LightBlue),
++        "build" => ("\u{f19fc}", Color::Gray),
++        "lib" => ("\u{f0c82}", Color::Yellow),
++        "bin" => ("\u{f19fa}", Color::Yellow),
++        "tmp" => ("\u{f0aba}", Color::Yellow),
++        "home" => ("\u{f10b5}", Color::Yellow),
++        "downloads" => ("\u{f024d}", Color::LightRed),
++        "desktop" => ("\u{f069d}", Color::LightRed),
++        "documents" => ("\u{f19f6}", Color::LightRed),
++        "pictures" => ("\u{f024f}", Color::LightRed),
++        "videos" => ("\u{f178a}", Color::LightRed),
++        "music" => ("\u{f1359}", Color::LightRed),
++        ".cache" => ("\u{f0aba}", Color::Cyan),
++        _ if expanded => DEFAULT_DIR_OPEN,
++        _ => DEFAULT_DIR,
++    }
++}
++
++fn nerd_file_icon(name: &str) -> (&'static str, Color) {
++    let lower = name.to_ascii_lowercase();
++    match lower.as_str() {
++        "dockerfile" => ("\u{f0868}", Color::Blue),
++        "compose.yaml" | "docker-compose.yml" | "pnpm-lock.yaml" | "yarn.lock" => {
++            ("\u{0e6a8}", Color::Magenta)
++        }
++        "makefile" => ("\u{f1064}", Color::Gray),
++        "cmakelists.txt" => ("\u{f1064}", Color::LightRed),
++        "license" | "license.md" => ("\u{0e60a}", Color::Cyan),
++        "readme" | "readme.md" => ("\u{0f4ed}", Color::Yellow),
++        "changelog.md" => ("\u{f027b}", Color::Blue),
++        "cargo.lock" | "cargo.toml" | "pyproject.toml" | "uv.lock" => {
++            ("\u{0e6b2}", Color::LightRed)
++        }
++        ".eslintrc" | ".eslintrc.json" | ".prettierrc" | "flake.lock" | "jsconfig.json"
++        | "package-lock.json" | "package.json" | "tsconfig.json" => ("\u{f0626}", Color::Yellow),
++        "requirements.txt" => ("\u{f160e}", Color::Magenta),
++        "setup.py" => ("\u{f0320}", Color::Yellow),
++        "go.mod" => ("\u{f0afa}", Color::Cyan),
++        "go.sum" => ("\u{f07d3}", Color::Cyan),
++        "gemfile" | "vagrantfile" => ("\u{f0d2d}", Color::Red),
++        ".gitignore" => ("\u{f02a2}", Color::Magenta),
++        ".gitattributes" => ("\u{f02a2}", Color::Yellow),
++        ".gitmodules" => ("\u{f0493}", Color::LightRed),
++        ".gitlab-ci.yml" => ("\u{f0ba0}", Color::LightRed),
++        ".editorconfig" => ("\u{0e652}", Color::Gray),
++        ".npmrc" => ("\u{f0bc2}", Color::LightBlue),
++        ".bashrc" | ".nvmrc" | ".zshrc" => ("\u{f0493}", Color::Green),
++        ".dockerignore" => ("\u{f0868}", Color::LightRed),
++        ".vimrc" => ("\u{0e7c5}", Color::Green),
++        "init.lua" => ("\u{0f36f}", Color::Green),
++        "vite.config.ts" => ("\u{f06e6}", Color::LightBlue),
++        "next.config.js" | "tailwind.config.js" | "webpack.config.js" => {
++            ("\u{f031e}", Color::Yellow)
++        }
++        "justfile" => ("\u{f05b7}", Color::LightRed),
++        "flake.nix" => ("\u{f1105}", Color::LightBlue),
++        "codeowners" => ("\u{f073b}", Color::Magenta),
++        "agents.md" | "claude.md" => ("\u{f0354}", Color::Gray),
++        "robots.txt" => ("\u{f06a9}", Color::Gray),
++        _ => by_extension(&lower),
++    }
++}
++
++fn by_extension(lower_name: &str) -> (&'static str, Color) {
++    let ext = lower_name.rsplit_once('.').map(|(_, e)| e).unwrap_or("");
++    match ext {
++        "json" | "jsonc" => ("\u{f0626}", Color::Yellow),
++        "json5" => ("\u{f0626}", Color::LightRed),
++        "markdown" | "md" => ("\u{f0354}", Color::Gray),
++        "yaml" | "yml" => ("\u{0e6a8}", Color::Magenta),
++        "toml" => ("\u{0e6b2}", Color::LightRed),
++        "ini" => ("\u{f0bc2}", Color::LightBlue),
++        "cfg" => ("\u{f0493}", Color::Blue),
++        "conf" => ("\u{f0493}", Color::Gray),
++        "lua" => ("\u{f08b1}", Color::LightBlue),
++        "py" | "pyi" => ("\u{f0320}", Color::Yellow),
++        "ipynb" => ("\u{f082e}", Color::LightRed),
++        "rs" => ("\u{f1617}", Color::LightRed),
++        "go" => ("\u{f07d3}", Color::LightBlue),
++        "cjs" | "js" | "mjs" => ("\u{f031e}", Color::Yellow),
++        "jsx" => ("\u{0e625}", Color::LightBlue),
++        "ts" => ("\u{f06e6}", Color::LightBlue),
++        "tsx" => ("\u{0e7ba}", Color::Blue),
++        "vue" => ("\u{f0844}", Color::Green),
++        "svelte" => ("\u{0e697}", Color::LightRed),
++        "htm" | "html" | "pt" => ("\u{f031d}", Color::LightRed),
++        "css" => ("\u{f031c}", Color::LightBlue),
++        "sass" | "scss" => ("\u{f07ec}", Color::Red),
++        "less" => ("\u{f031c}", Color::Magenta),
++        "bash" | "fish" | "sh" => ("\u{0e691}", Color::Gray),
++        "zsh" => ("\u{0e691}", Color::Green),
++        "ps1" => ("\u{f0a0a}", Color::Blue),
++        "bat" => ("\u{f0bc2}", Color::Green),
++        "c" => ("\u{f0671}", Color::Blue),
++        "h" => ("\u{f0af5}", Color::Magenta),
++        "cc" | "cpp" | "cxx" | "hh" | "hpp" => ("\u{f0672}", Color::LightBlue),
++        "java" => ("\u{f0b37}", Color::LightRed),
++        "kt" | "kts" => ("\u{f1219}", Color::Blue),
++        "scala" => ("\u{0e737}", Color::Red),
++        "rb" => ("\u{f0d2d}", Color::Red),
++        "php" => ("\u{f031f}", Color::Magenta),
++        "swift" => ("\u{f06e5}", Color::LightRed),
++        "cs" => ("\u{f031b}", Color::Green),
++        "dart" => ("\u{0e798}", Color::Blue),
++        "r" => ("\u{f07d4}", Color::Blue),
++        "jl" => ("\u{0e624}", Color::Magenta),
++        "hs" => ("\u{f0c92}", Color::Magenta),
++        "ex" => ("\u{0e62d}", Color::Magenta),
++        "exs" => ("\u{0e653}", Color::Magenta),
++        "erl" => ("\u{0e7b1}", Color::Red),
++        "clj" => ("\u{0e768}", Color::Green),
++        "zig" => ("\u{0e6a9}", Color::LightRed),
++        "nim" => ("\u{0e677}", Color::Yellow),
++        "sql" => ("\u{f01bc}", Color::Gray),
++        "proto" => ("\u{0f1a0}", Color::Red),
++        "gql" | "graphql" => ("\u{f0877}", Color::Red),
++        "xml" => ("\u{f05c0}", Color::LightRed),
++        "xsl" => ("\u{f05c0}", Color::Green),
++        "svg" => ("\u{f0721}", Color::Yellow),
++        "csv" => ("\u{0e64a}", Color::Green),
++        "tsv" => ("\u{0e64a}", Color::Blue),
++        "txt" => ("\u{f09aa}", Color::Yellow),
++        "pdf" => ("\u{f0226}", Color::Red),
++        "doc" | "docx" => ("\u{f1392}", Color::LightBlue),
++        "xls" | "xlsx" => ("\u{f138f}", Color::Green),
++        "ppt" | "pptx" => ("\u{f1390}", Color::Red),
++        "png" => ("\u{f0e2d}", Color::Magenta),
++        "jpeg" | "jpg" => ("\u{f0225}", Color::LightRed),
++        "gif" => ("\u{f0d78}", Color::LightBlue),
++        "webp" => ("\u{f021f}", Color::Blue),
++        "bmp" => ("\u{f021f}", Color::Green),
++        "tif" | "tiff" => ("\u{f021f}", Color::Yellow),
++        "ai" => ("\u{0e7b4}", Color::Yellow),
++        "mp4" => ("\u{f022b}", Color::LightBlue),
++        "mov" => ("\u{f022b}", Color::Cyan),
++        "mkv" => ("\u{f022b}", Color::Green),
++        "avi" | "webm" => ("\u{f022b}", Color::Gray),
++        "mp3" => ("\u{f0223}", Color::LightBlue),
++        "wav" => ("\u{f0223}", Color::Green),
++        "flac" => ("\u{f0223}", Color::LightRed),
++        "ogg" => ("\u{f0223}", Color::Gray),
++        "zip" => ("\u{f05c4}", Color::LightBlue),
++        "tar" => ("\u{f05c4}", Color::Cyan),
++        "gz" | "tgz" => ("\u{f05c4}", Color::Gray),
++        "bz2" => ("\u{f05c4}", Color::LightRed),
++        "rar" | "xz" => ("\u{f05c4}", Color::Green),
++        "zst" => ("\u{f05c4}", Color::Yellow),
++        "7z" => ("\u{f05c4}", Color::Blue),
++        "tex" => ("\u{0e69b}", Color::Green),
++        "bib" => ("\u{f125f}", Color::Yellow),
++        "org" => ("\u{0e633}", Color::Cyan),
++        "rst" => ("\u{f0284}", Color::Yellow),
++        "adoc" => ("\u{f0ab6}", Color::Yellow),
++        "vim" => ("\u{0e7c5}", Color::Green),
++        "el" => ("\u{0e6b0}", Color::Gray),
++        "nix" => ("\u{f1105}", Color::LightBlue),
++        "tf" => ("\u{f1062}", Color::Blue),
++        "tfvars" => ("\u{f1062}", Color::LightBlue),
++        "hcl" => ("\u{f0af5}", Color::LightBlue),
++        "cmake" => ("\u{f1064}", Color::LightRed),
++        "gradle" => ("\u{0e775}", Color::LightBlue),
++        "diff" | "patch" => ("\u{f0993}", Color::Red),
++        "crt" | "pem" => ("\u{f0307}", Color::Yellow),
++        "a" => ("\u{0e637}", Color::Magenta),
++        "exe" => ("\u{f05b3}", Color::Red),
++        "rpm" => ("\u{f05c4}", Color::Red),
++        "class" => ("\u{f076b}", Color::Red),
++        "pkl" => ("\u{f0afd}", Color::Blue),
++        _ => DEFAULT_FILE,
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use ratatui::text::Span;
++
++    #[test]
++    fn parse_is_lenient() {
++        assert_eq!(Mode::parse(Some(" Nerd-Font ")), Mode::Nerd);
++        assert_eq!(Mode::parse(Some("EMOJI")), Mode::Emoji);
++        assert_eq!(Mode::parse(Some("none")), Mode::Off);
++        assert_eq!(Mode::parse(None), Mode::Off);
++    }
++
++    #[test]
++    fn nerd_tables_give_distinct_one_cell_glyphs() {
++        let json = nerd_file_icon("package-lock.json");
++        let md = nerd_file_icon("README.md");
++        let yaml = nerd_file_icon("ci.yml");
++        assert_ne!(json.0, md.0);
++        assert_ne!(md.0, yaml.0);
++        assert_ne!(json.0, DEFAULT_FILE.0);
++        assert_eq!(nerd_file_icon("Dockerfile"), nerd_file_icon("DOCKERFILE"));
++        assert_eq!(nerd_file_icon("noext"), DEFAULT_FILE);
++        assert_eq!(nerd_dir_icon("whatever", false), DEFAULT_DIR);
++        assert_eq!(nerd_dir_icon("whatever", true), DEFAULT_DIR_OPEN);
++        assert_ne!(nerd_dir_icon("src", false), DEFAULT_DIR);
++        for g in [
++            DEFAULT_FILE.0,
++            DEFAULT_DIR.0,
++            DEFAULT_DIR_OPEN.0,
++            json.0,
++            md.0,
++            yaml.0,
++        ] {
++            assert_eq!(Span::raw(g).width(), 1, "{g:?}");
++        }
++    }
++
++    #[test]
++    fn emoji_table_gives_two_cell_glyphs() {
++        for name in [
++            "a.json",
++            "b.md",
++            "c.py",
++            "Dockerfile",
++            "README",
++            "x.unknown",
++            "noext",
++            "d.png",
++            "e.c",
++        ] {
++            let (g, _) = emoji_file_icon(&name.to_ascii_lowercase());
++            assert_eq!(Span::raw(g).width(), 2, "{name} -> {g:?}");
++        }
++        assert_ne!(emoji_file_icon("a.json").0, emoji_file_icon("b.md").0);
++        assert_ne!(emoji_file_icon("a.json").0, emoji_file_icon("noext").0);
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+index 119b97c..dfa2d29 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -17,6 +17,7 @@ pub mod help;
+ pub mod herdr;
+ pub mod highlight;
+ pub mod host;
++pub mod icons;
+ pub mod index;
+ pub mod infile;
+ pub mod input;
+diff --git a/src/presenter.rs b/src/presenter.rs
+index 60dfdd8..3b975c1 100644
+--- a/src/presenter.rs
++++ b/src/presenter.rs
+@@ -518,6 +518,28 @@ fn tree_row(node: &Node, selected: bool, annotated: bool) -> Line<'static> {
+         row_style
+     };
+     let mut spans = vec![Span::styled(prefix, row_style)];
++    // Optional Nerd Font icon (`file_icons = "nerd-font"`): one glyph + one blank, type-colored
++    // unless the row is selected (REVERSED keeps the selection bar one solid color). It is a span
++    // of its own so the name keeps its git/annotation styling untouched. Both files and folders
++    // get exactly two columns, so sibling names still line up and the width function (which
++    // shares this row builder) stays in step.
++    if crate::icons::enabled() {
++        let leaf = node
++            .path
++            .file_name()
++            .map(|n| n.to_string_lossy().into_owned())
++            .unwrap_or_default();
++        let (glyph, color) = match node.kind {
++            NodeKind::Dir => crate::icons::dir_icon(&leaf, node.expanded),
++            NodeKind::File => crate::icons::file_icon(&leaf),
++        };
++        let icon_style = if selected {
++            row_style
++        } else {
++            row_style.fg(color)
++        };
++        spans.push(Span::styled(format!("{glyph} "), icon_style));
++    }
+     let name = sanitize_control(&node_name(node));
+     // A compacted chain row (`src/main/java`) folds away the indentation that used to signal depth,
+     // so the row needs its own anchor: draw the leading segments DIM and the last one at full

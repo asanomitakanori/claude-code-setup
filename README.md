@@ -9,6 +9,7 @@ Personal setup for [Claude Code](https://docs.claude.com/en/docs/claude-code).
 - `rules/`: global rules for how to work with pstack
 - `settings.example.json`: general settings (theme, model, effort per model, status line)
 - `statusline/`: the status line script and its installer
+- `herdr/`: [herdr](https://herdr.dev) config, the file viewer plugin and its installer
 - `.claude/settings.json`: plugins enabled when Claude Code opens this repository
 
 ## Plugins
@@ -87,3 +88,26 @@ Restart Claude Code to pick it up.
 ## License
 
 MIT, see [LICENSE](LICENSE). This covers the files in this repository. pstack and thermos are not included here and stay under their own MIT Licenses (© 2026 Lauren Tan and © 2026 Cursor).
+
+## herdr
+
+[herdr](https://herdr.dev) is a terminal workspace manager for coding agents (tmux-like, with each agent's state in a sidebar). `herdr/` holds:
+
+- `config.toml`: catppuccin theme, onboarding off, and `prefix+f` / `prefix+shift+f` to open the file viewer in a split / tab
+- [herdr-file-viewer](https://github.com/smarzban/herdr-file-viewer) (© smarzban, MIT): a git-aware read-only file viewer, pinned to the commit the icon patch was made against. `file-viewer.toml` sets emoji file icons and a one-line scroll step
+- `file-viewer-icons.patch`: adds the `file_icons` option (`emoji`, `nerd-font` or `none`), which upstream declined (smarzban/herdr-file-viewer#153)
+- `zshrc.snippet`: per-host session and socket for hosts that share one NFS home
+
+### Install
+
+```bash
+./herdr/install.sh
+```
+
+This installs herdr if it is missing, copies the configs into `~/.config/herdr/` (backing up any differing file), installs the plugin, and applies the icon patch and rebuilds it when `cargo` is available (without it the viewer runs without icons). Requires `curl`, `git` and `jq`. On hosts with a shared NFS home, append the snippet:
+
+```bash
+cat herdr/zshrc.snippet >> ~/.zshrc
+```
+
+Optionally, `herdr integration install claude` adds native Claude Code session restore.
