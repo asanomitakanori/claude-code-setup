@@ -11,6 +11,8 @@ Personal setup for [Claude Code](https://docs.claude.com/en/docs/claude-code).
 - `statusline/`: the status line script and its installer
 - `herdr/`: [herdr](https://herdr.dev) config, the file viewer plugin and its installer
 - `.claude/settings.json`: plugins enabled when Claude Code opens this repository
+- `pyproject.toml`, `ruff.toml`: Python project managed with [uv](https://docs.astral.sh/uv/) and linted/formatted with [ruff](https://docs.astral.sh/ruff/) (`uv sync`, `uv run ruff format . && uv run ruff check .`)
+- `.github/`: CI (ruff on push and pull requests), Dependabot and the pull request template
 
 ## Plugins
 

@@ -1,0 +1,46 @@
+target-version = "py312"
+line-length = 100
+
+[format]
+quote-style = "double"
+docstring-code-format = true
+
+[lint]
+select = [
+  "E", "W",  # pycodestyle
+  "F",       # pyflakes
+  "I",       # isort
+  "N",       # pep8-naming
+  "UP",      # pyupgrade
+  "B",       # flake8-bugbear
+  "A",       # flake8-builtins
+  "C4",      # flake8-comprehensions
+  "DTZ",     # flake8-datetimez
+  "T10",     # flake8-debugger
+  "ISC",     # flake8-implicit-str-concat
+  "PIE",     # flake8-pie
+  "PT",      # flake8-pytest-style
+  "RET",     # flake8-return
+  "SIM",     # flake8-simplify
+  "TID",     # flake8-tidy-imports
+  "PTH",     # flake8-use-pathlib
+  "ERA",     # eradicate (commented-out code)
+  "PL",      # pylint
+  "TRY",     # tryceratops
+  "PERF",    # perflint
+  "FURB",    # refurb
+  "RUF",     # ruff-specific
+]
+ignore = [
+  "E501",     # line length is left to the formatter
+  "ISC001",   # conflicts with the formatter
+  "PLR0913",  # too many arguments
+  "PLR2004",  # magic value comparison
+  "TRY003",   # long messages outside exception classes
+]
+
+[lint.per-file-ignores]
+"tests/**" = ["PLR2004", "S101"]
+
+[lint.isort]
+combine-as-imports = true
