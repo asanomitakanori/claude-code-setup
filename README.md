@@ -58,3 +58,7 @@ Restart Claude Code to pick it up.
 ## Credits
 
 - [pstack](https://github.com/cursor/plugins/tree/main/pstack) by Lauren Tan, cited from [cursor/plugins](https://github.com/cursor/plugins) under the MIT License.
+
+## License
+
+MIT, see [LICENSE](LICENSE). This covers the files in this repository. pstack is not included here and stays under its own MIT License (© 2026 Lauren Tan).
